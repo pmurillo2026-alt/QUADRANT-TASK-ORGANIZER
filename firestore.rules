@@ -1,0 +1,175 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Default-deny global catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedInVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedInVerified() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    function isValidProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 254
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 120
+        && (!('photoURL' in data) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidActionPlan(plan) {
+      return plan is map
+        && plan.keys().hasAll(['q1q2Sequence', 'q3BatchStrategy', 'q4DropStrategy'])
+        && plan.keys().hasOnly(['q1q2Sequence', 'q3BatchStrategy', 'q4DropStrategy', 'urgencyChallenge'])
+        && plan.q3BatchStrategy is string && plan.q3BatchStrategy.size() <= 1000
+        && plan.q4DropStrategy is string && plan.q4DropStrategy.size() <= 1000
+        && (!('urgencyChallenge' in plan) || plan.urgencyChallenge == null || (plan.urgencyChallenge is string && plan.urgencyChallenge.size() <= 1000))
+        && plan.q1q2Sequence is list
+        && plan.q1q2Sequence.size() <= 50
+        && (plan.q1q2Sequence.size() == 0 || plan.q1q2Sequence[0] is map);
+    }
+
+    function isValidSettings(data, userId) {
+      return data.keys().hasAll(['ownerId', 'thresholdMinutes', 'soundEnabled', 'desktopEnabled', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'thresholdMinutes', 'soundEnabled', 'desktopEnabled', 'snoozedUntil', 'actionPlan', 'updatedAt'])
+        && data.ownerId is string
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.thresholdMinutes is int
+        && data.thresholdMinutes in [30, 60, 120, 240, 1440]
+        && data.soundEnabled is bool
+        && data.desktopEnabled is bool
+        && (!('snoozedUntil' in data) || (data.snoozedUntil is map && data.snoozedUntil.size() <= 100))
+        && (!('actionPlan' in data) || data.actionPlan == null || isValidActionPlan(data.actionPlan))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTask(data, userId, taskId) {
+      return data.keys().hasAll(['id', 'ownerId', 'title', 'quadrant', 'isTopThree', 'rationale', 'completed', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'title', 'quadrant', 'isTopThree', 'topRank', 'rationale', 'dueAt', 'dueLabel', 'estimatedMinutes', 'completed', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id == taskId
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.quadrant is string && data.quadrant in ['Q1', 'Q2', 'Q3', 'Q4']
+        && data.isTopThree is bool
+        && (!('topRank' in data) || data.topRank == null || (data.topRank is int && data.topRank in [1, 2, 3]))
+        && data.rationale is string && data.rationale.size() <= 500
+        && (!('dueAt' in data) || data.dueAt == null || (data.dueAt is string && data.dueAt.size() <= 64))
+        && (!('dueLabel' in data) || data.dueLabel == null || (data.dueLabel is string && data.dueLabel.size() <= 80))
+        && (!('estimatedMinutes' in data) || data.estimatedMinutes == null || (data.estimatedMinutes is int && data.estimatedMinutes >= 1 && data.estimatedMinutes <= 1440))
+        && data.completed is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMessage(data, userId, messageId) {
+      return data.keys().hasAll(['id', 'ownerId', 'role', 'content', 'timestamp', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'role', 'content', 'timestamp', 'createdAt'])
+        && data.id is string && data.id == messageId
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.role is string && data.role in ['coach', 'user']
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 8000
+        && data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    // 1. Private Gmail User Profile (PII Isolation)
+    match /users/{userId}/private/profile {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && isValidProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+      allow delete: if isOwner(userId);
+    }
+
+    // 2. Workspace Settings & Action Plan
+    match /users/{userId}/workspace/settings {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && isValidSettings(incoming(), userId)
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidSettings(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['thresholdMinutes', 'soundEnabled', 'desktopEnabled', 'snoozedUntil', 'actionPlan', 'updatedAt']);
+      allow delete: if isOwner(userId);
+    }
+
+    // 3. User Eisenhower Matrix Tasks
+    match /users/{userId}/tasks/{taskId} {
+      allow get: if isOwner(userId) && isValidId(taskId);
+      allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+      allow create: if isOwner(userId)
+        && isValidId(taskId)
+        && isValidTask(incoming(), userId, taskId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(taskId)
+        && isValidTask(incoming(), userId, taskId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Toggle completion
+          incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'updatedAt']) ||
+          // Action: Move quadrant / reprioritize
+          incoming().diff(existing()).affectedKeys().hasOnly(['quadrant', 'isTopThree', 'topRank', 'rationale', 'updatedAt']) ||
+          // Action: Update deadline
+          incoming().diff(existing()).affectedKeys().hasOnly(['dueAt', 'dueLabel', 'updatedAt']) ||
+          // Action: Full task edit
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'quadrant', 'isTopThree', 'topRank', 'rationale', 'dueAt', 'dueLabel', 'estimatedMinutes', 'completed', 'updatedAt'])
+        );
+      allow delete: if isOwner(userId) && isValidId(taskId);
+    }
+
+    // 4. User Coach Conversation Messages
+    match /users/{userId}/messages/{messageId} {
+      allow get: if isOwner(userId) && isValidId(messageId);
+      allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+      allow create: if isOwner(userId)
+        && isValidId(messageId)
+        && isValidMessage(incoming(), userId, messageId)
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isOwner(userId) && isValidId(messageId);
+    }
+  }
+}

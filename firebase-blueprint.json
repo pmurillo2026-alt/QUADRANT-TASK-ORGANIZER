@@ -1,0 +1,192 @@
+{
+  "entities": {
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Private Gmail-authenticated user profile containing PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "WorkspaceSettings": {
+      "title": "WorkspaceSettings",
+      "description": "Per-user deadline notification settings, snoozes, and current action plan.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "thresholdMinutes": {
+          "type": "integer"
+        },
+        "soundEnabled": {
+          "type": "boolean"
+        },
+        "desktopEnabled": {
+          "type": "boolean"
+        },
+        "snoozedUntil": {
+          "type": "object"
+        },
+        "actionPlan": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "thresholdMinutes", "soundEnabled", "desktopEnabled", "updatedAt"]
+    },
+    "MatrixTask": {
+      "title": "MatrixTask",
+      "description": "Single Eisenhower Matrix task belonging to an authenticated user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "quadrant": {
+          "type": "string",
+          "enum": ["Q1", "Q2", "Q3", "Q4"]
+        },
+        "isTopThree": {
+          "type": "boolean"
+        },
+        "topRank": {
+          "type": "integer"
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "dueAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "dueLabel": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "estimatedMinutes": {
+          "type": "integer"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "title",
+        "quadrant",
+        "isTopThree",
+        "rationale",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Coach or user conversation turn persisted for the authenticated user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["coach", "user"]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "timestamp": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "ownerId", "role", "content", "timestamp", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/private/profile": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Isolated private Gmail user profile document readable and writable only by the owning user."
+    },
+    "/users/{userId}/workspace/settings": {
+      "schema": { "$ref": "#/entities/WorkspaceSettings" },
+      "description": "Per-user deadline notification configuration, snooze map, and action plan."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/MatrixTask" },
+      "description": "Eisenhower Matrix tasks owned by userId."
+    },
+    "/users/{userId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Coach chat history entries owned by userId."
+    }
+  }
+}

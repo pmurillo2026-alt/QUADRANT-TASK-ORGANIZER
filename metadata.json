@@ -1,0 +1,8 @@
+{
+  "name": "Quadrant",
+  "description": "Self-contained executive productivity coach and Eisenhower Matrix workspace with approaching-deadline alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
