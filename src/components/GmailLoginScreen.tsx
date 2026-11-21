@@ -41,9 +41,19 @@ export const GmailLoginScreen: React.FC<GmailLoginScreenProps> = ({
           {authError && (
             <div
               role="alert"
-              className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-relaxed text-red-800"
+              className="mt-5 space-y-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-relaxed text-red-800"
             >
-              {authError}
+              <p>{authError}</p>
+              {authError.includes('Authorized domains') && (
+                <a
+                  href="https://console.firebase.google.com/project/gen-lang-client-0690512714/authentication/settings"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block font-semibold text-red-900 underline underline-offset-2"
+                >
+                  Open Firebase Authorized Domains Settings
+                </a>
+              )}
             </div>
           )}
 

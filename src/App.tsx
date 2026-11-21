@@ -7,7 +7,7 @@ import { DeadlineAlertsView } from './components/DeadlineAlertsView';
 import { FocusSessionBar } from './components/FocusSessionBar';
 import { GmailLoginScreen } from './components/GmailLoginScreen';
 import { QuadrantMatrix } from './components/QuadrantMatrix';
-import { auth, googleProvider } from './firebase';
+import { auth, FIRESTORE_PROJECT_ID, googleProvider } from './firebase';
 import {
   createMessageDoc,
   createSingleTask,
@@ -324,6 +324,12 @@ export default function App() {
       } else if (code === 'auth/popup-blocked') {
         setAuthError(
           'Your browser blocked the Google sign-in popup. Please allow popups for this site and try again.'
+        );
+      } else if (code === 'auth/unauthorized-domain') {
+        const host =
+          typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        setAuthError(
+          `Domain "${host}" is not yet authorized in Firebase Authentication. Add "${host}" under Authentication > Settings > Authorized domains for project "${FIRESTORE_PROJECT_ID}", or continue in local mode below.`
         );
       } else {
         setAuthError(err?.message || 'Unable to sign in with Gmail. Please try again.');
@@ -875,6 +881,23 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Auth error banner when in guest mode */}
+      {authError && (
+        <div role="alert" className="border-b border-red-200 bg-red-50 text-red-900">
+          <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-2.5 text-xs sm:px-6">
+            <span>{authError}</span>
+            <button
+              type="button"
+              onClick={() => setAuthError(null)}
+              aria-label="Dismiss sign-in error"
+              className="rounded p-1 text-red-700 hover:bg-red-100"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Active Focus Session Bar */}
       {focusTask && (
